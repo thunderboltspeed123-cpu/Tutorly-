@@ -722,11 +722,24 @@ async function generateWithModelFallback(
           config.thinkingConfig = { thinkingLevel: ThinkingLevel.LOW };
         }
 
-        const response = await ai.models.generateContent({
+        const generatePromise = ai.models.generateContent({
           model,
           contents: params.contents,
           config,
         });
+
+        if (IS_SERVERLESS && model === 'gemini-4-hydrogen') {
+          generatePromise.catch(() => {});
+        }
+        const response =
+          IS_SERVERLESS && model === 'gemini-4-hydrogen'
+            ? await Promise.race([
+                generatePromise,
+                new Promise<never>((_, reject) =>
+                  setTimeout(() => reject(new Error('Primary model timeout (serverless)')), 4500)
+                ),
+              ])
+            : await generatePromise;
 
         const text = response.text?.trim() || '';
         if (text) return text;
@@ -745,6 +758,10 @@ async function generateWithModelFallback(
           const jitter = Math.floor(Math.random() * 250);
           await new Promise((r) => setTimeout(r, baseDelay + jitter));
           continue;
+        }
+        if (status === 503 || status === 504 || /timeout|aborted|DEADLINE_EXCEEDED/i.test(String(err?.message || ''))) {
+          // Cool down overloaded/slow model briefly so subsequent requests jump straight to working fallback
+          modelQuotaCooldownUntil.set(model, Date.now() + 3 * 60 * 1000);
         }
         break;
       }
@@ -817,7 +834,7 @@ app.post(['/api/chat', '/api/chat/'], async (req: Request, res: Response) => {
     const ai = new GoogleGenAI({
       apiKey,
       httpOptions: {
-        timeout: IS_SERVERLESS ? 8500 : 30000,
+        timeout: IS_SERVERLESS ? 10000 : 15000,
         headers: {
           'User-Agent': 'aistudio-build',
         },
@@ -958,7 +975,7 @@ app.post(['/api/quiz', '/api/quiz/'], async (req: Request, res: Response) => {
     const ai = new GoogleGenAI({
       apiKey,
       httpOptions: {
-        timeout: IS_SERVERLESS ? 8500 : 30000,
+        timeout: IS_SERVERLESS ? 10000 : 15000,
         headers: { 'User-Agent': 'aistudio-build' },
       },
     });
@@ -1075,7 +1092,7 @@ app.post(['/api/story/generate', '/api/story/generate/'], async (req: Request, r
   try {
     const ai = new GoogleGenAI({
       apiKey,
-      httpOptions: { timeout: IS_SERVERLESS ? 8500 : 30000, headers: { 'User-Agent': 'aistudio-build' } },
+      httpOptions: { timeout: IS_SERVERLESS ? 10000 : 15000, headers: { 'User-Agent': 'aistudio-build' } },
     });
 
     const prompt = `Create an interactive 4-chapter story quest for a 5-7 year old child named "${heroName}" with avatar emoji "${heroAvatar}" specifically on the educational topic: "${topic}" (Subject: ${subject}).
