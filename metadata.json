@@ -1,0 +1,8 @@
+{
+  "name": "Remix Remix Learning Buddy",
+  "description": "A friendly and patient AI tutor for kids aged 5 to 13 featuring safe interactive tutoring across math, science, reading, english, and coding.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
