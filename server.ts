@@ -759,10 +759,6 @@ async function generateWithModelFallback(
           await new Promise((r) => setTimeout(r, baseDelay + jitter));
           continue;
         }
-        if (status === 503 || status === 504 || /timeout|aborted|DEADLINE_EXCEEDED/i.test(String(err?.message || ''))) {
-          // Cool down overloaded/slow model briefly so subsequent requests jump straight to working fallback
-          modelQuotaCooldownUntil.set(model, Date.now() + 3 * 60 * 1000);
-        }
         break;
       }
     }
